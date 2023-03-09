@@ -1,27 +1,86 @@
 mod client;
 mod server;
+mod stream;
+/* mod common; */
+/* mod tls; */
 
+use std::{ops::RangeInclusive, time::Duration};
+use clap::{Parser, Subcommand};
 // use std::env;
+use stream::{ client, server };
 
-async fn run() -> Result<(), String> {
-    let mut stdin = tokio::io::stdin();
-    let mut stdout = tokio::io::stdout();
-
-    tokio::spawn(async move {
-        tokio::io::copy(&mut stdin, &mut stdout).await.unwrap();
-    }).await.unwrap();
-
-    Ok(())
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+#[command(propagate_version = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
 }
 
-#[tokio::main]
-async fn main() {
-    run().await.unwrap();
-    
-    /*
-        let args: Vec<_> = env::args().collect();
-        if args.len() > 1 {
-            println!("The first argument is {}", args[1]);
+#[derive(Subcommand)]
+enum Command {
+    /// Connect to a server
+    Connect {
+        host: String,
+
+        #[arg(short, long, value_parser = port_in_range)]
+        port: u16,
+    },
+
+    /// Start a server
+    Serve {
+        #[arg(default_value = "127.0.0.1")]
+        bind_host: String,
+
+        #[arg(short, long, value_parser = port_in_range)]
+        port: u16,
+    },
+}
+
+const PORT_RANGE: RangeInclusive<usize> = 1..=65535;
+
+fn port_in_range(s: &str) -> Result<u16, String> {
+    let port: usize = s
+        .parse()
+        .map_err(|_| format!("`{}` is not a valid port number", s))?;
+    if PORT_RANGE.contains(&port) {
+        Ok(port as u16)
+    } else {
+        Err(format!(
+            "Port not in range {}-{}",
+            PORT_RANGE.start(),
+            PORT_RANGE.end()
+        ))
+    }
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+
+    match cli.command {
+        Command::Connect { host, port } => {
+            println!("connect to {}:{}", host, port);
+
+            runtime.block_on(async {
+                tokio::select! {
+                    _ = client() => {}
+                    _ = tokio::signal::ctrl_c() => {}
+                }
+            });
         }
-    */
+        Command::Serve { bind_host, port } => {
+            println!("bind to {}:{}", bind_host, port);
+
+            runtime.block_on(async {
+                tokio::select! {
+                    _ = server() => {}
+                    _ = tokio::signal::ctrl_c() => {}
+                }
+            });
+        }
+    }
+
+    runtime.shutdown_timeout(Duration::from_secs(0));
 }
