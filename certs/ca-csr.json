@@ -1,0 +1,15 @@
+{
+    "CN": "example",
+    "hosts": [
+        "example.io"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "UK"
+        }
+    ]
+}
