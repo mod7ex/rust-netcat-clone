@@ -1,0 +1,1 @@
+## [Openssl Complete guide](https://www.youtube.com/watch?v=d8OpUcHzTeg&ab_channel=theurbanpenguin)
