@@ -8,7 +8,7 @@ mod udp;
 use std::{ops::RangeInclusive, time::Duration, path::Path};
 use clap::{Parser, Subcommand};
 /* use stream::{ client, server }; */
-use tls::{tls_connect, tls_listen};
+use udp::{ udp_connect, udp_serve };
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -27,8 +27,8 @@ enum Command {
         #[arg(short, long, value_parser = port_in_range)]
         port: u16,
 
-        #[arg(long, value_parser = valid_path)]
-        ca: Option<String>
+        #[arg(short, long, value_parser = port_in_range)]
+        listen_port: u16
     },
 
     /// Start a server
@@ -37,13 +37,7 @@ enum Command {
         bind_host: String,
 
         #[arg(short, long, value_parser = port_in_range)]
-        port: u16,
-
-        #[arg(long, value_parser = valid_path)]
-        cert: Option<String>,
-
-        #[arg(long, value_parser = valid_path)]
-        key: Option<String>,
+        port: u16
     },
 }
 
@@ -80,12 +74,12 @@ fn main() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     match cli.command {
-        Command::Connect { host, port, ca } => {
+        Command::Connect { host, port, listen_port } => {
             println!("connect to {}:{}", host, port);
 
             runtime.block_on(async {
                 tokio::select! {
-                    res = tls_connect(&host, port, ca) => {
+                    res = udp_connect(&host, port, listen_port) => {
                         if let Err(e) = res {
                             println!("connect failed: {}", e.to_string());
                         }
@@ -95,13 +89,13 @@ fn main() {
                 }
             });
         }
-        Command::Serve { bind_host, port, cert, key } => {
+        Command::Serve { bind_host, port } => {
             println!("bind to {}:{}", bind_host, port);
 
             runtime.block_on(async {
                 tokio::select! {
                     /* _ = server() => {} */
-                    res = tls_listen(&bind_host, port, cert.clone().expect("cert is required"), key.clone().expect("key is required")) => {
+                    res = udp_serve(&bind_host, port) => {
                         if let Err(e) = res {
                             println!("listen failed: {}", e.to_string());
                         }

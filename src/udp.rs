@@ -23,14 +23,20 @@ pub async fn udp_connect(host: &str, port: u16, listen_port: u16) -> Result<(), 
 
     let mut stdin = stdin();
 
-    loop {
+    let mut active = true;
+
+    while active {
         select! {
             res = stdin.read(&mut stdin_buffer) => {
                 if let Ok(amount) = res {
-                    socket
-                        .send(&stdin_buffer[0..amount])
-                        .await
-                        .expect("failed to send data");
+                    if amount != 0 {
+                        socket
+                            .send(&stdin_buffer[0..amount])
+                            .await
+                            .expect("failed to send data");
+                    } else {
+                        active = false;
+                    }
                 } else {
                     res.unwrap();
                 }
@@ -48,6 +54,8 @@ pub async fn udp_connect(host: &str, port: u16, listen_port: u16) -> Result<(), 
             }
         }
     }
+
+    Ok(())
 }
 
 pub async fn udp_serve(host: &str, port: u16) -> Result<(), String> {
@@ -62,13 +70,26 @@ pub async fn udp_serve(host: &str, port: u16) -> Result<(), String> {
 
     let mut is_connected = false;
 
-    loop {
+    let mut active = true;
+
+    let mut buffer = Vec::new();
+
+    while active {
         select! {
             res = socket.recv_from(&mut network_in_buffer) => {
                 if let Ok((amount, remote_addr)) = res {
                     if !is_connected {
                         socket.connect(remote_addr).await.unwrap();
                         is_connected = true;
+
+                        if !buffer.is_empty() {
+                            socket
+                                .send(buffer.as_ref())
+                                .await
+                                .expect("failed to send data");
+
+                            buffer.clear();
+                        }
                     }
 
                     stdout()
@@ -82,11 +103,17 @@ pub async fn udp_serve(host: &str, port: u16) -> Result<(), String> {
 
             res = stdin.read(&mut stdin_buffer) => {
                 if let Ok(amount) = res {
-                    if is_connected {
-                        socket
-                            .send(&stdin_buffer[0..amount])
-                            .await
-                            .expect("failed to send data");
+                    if amount != 0 {
+                        if is_connected {
+                            socket
+                                .send(&stdin_buffer[0..amount])
+                                .await
+                                .expect("failed to send data");
+                        } else {
+                            buffer.extend_from_slice(&stdin_buffer[0..amount])
+                        }
+                    } else {
+                        active = false;
                     }
                 } else {
                     res.unwrap();
@@ -94,4 +121,6 @@ pub async fn udp_serve(host: &str, port: u16) -> Result<(), String> {
             }
         }
     }
+
+    Ok(())
 }
