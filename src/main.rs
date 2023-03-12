@@ -3,6 +3,7 @@ mod server;
 mod stream;
 mod common;
 mod tls;
+mod udp;
 
 use std::{ops::RangeInclusive, time::Duration, path::Path};
 use clap::{Parser, Subcommand};
