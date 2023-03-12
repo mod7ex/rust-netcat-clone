@@ -39,9 +39,6 @@ enum Command {
         port: u16,
 
         #[arg(long, value_parser = valid_path)]
-        ca: Option<String>,
-
-        #[arg(long, value_parser = valid_path)]
         cert: Option<String>,
 
         #[arg(long, value_parser = valid_path)]
@@ -97,13 +94,13 @@ fn main() {
                 }
             });
         }
-        Command::Serve { bind_host, port, ca, cert, key } => {
+        Command::Serve { bind_host, port, cert, key } => {
             println!("bind to {}:{}", bind_host, port);
 
             runtime.block_on(async {
                 tokio::select! {
                     /* _ = server() => {} */
-                    res = tls_listen(&bind_host, port, ca, cert.clone().expect("cert is required"), key.clone().expect("key is required")) => {
+                    res = tls_listen(&bind_host, port, cert.clone().expect("cert is required"), key.clone().expect("key is required")) => {
                         if let Err(e) = res {
                             println!("listen failed: {}", e.to_string());
                         }

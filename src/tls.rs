@@ -58,28 +58,8 @@ pub async fn tls_connect(host: &str, port: u16, ca: Option<String>) -> Result<()
     Ok(())
 }
 
-pub async fn tls_listen(host: &str, port: u16, ca: Option<String>, cert: String, key: String) -> Result<(), Error> {
+pub async fn tls_listen(host: &str, port: u16, cert: String, key: String) -> Result<(), Error> {
     let addr = format!("{}:{}", host, port);
-
-    let mut root_cert_store = RootCertStore::empty();
-    root_cert_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(
-        |ta| {
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        },
-    ));
-
-    if let Some(ca) = ca {
-        for cert in load_certs(Path::new(&ca))? {
-            root_cert_store.add(&cert)
-                .map_err(|_e| {
-                    Error::new(io::ErrorKind::InvalidInput, "couldn't add CA")
-                })?;
-        }
-    }
 
     let certs = load_certs(Path::new(cert.as_str()))?;
     let mut keys = load_keys(Path::new(key.as_str()))?;
@@ -95,13 +75,16 @@ pub async fn tls_listen(host: &str, port: u16, ca: Option<String>, cert: String,
 
     let (socket, _) = listener.accept().await?;
 
+    let acceptor = acceptor.clone();
+
     let stream = acceptor.accept(socket).await?;
 
     let (reader, writer) = split(stream);
-
+    
     read_write(reader, writer).await;
 
     Ok(())
+
 }
 
 fn load_certs(path: &Path) -> io::Result<Vec<Certificate>> {
