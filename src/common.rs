@@ -1,5 +1,14 @@
 use std::process::Stdio;
-use tokio::{io::{AsyncRead, AsyncWrite}, process::Command};
+use tokio::{
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+        AsyncRead,
+        AsyncWrite
+    }, 
+    process::Command, 
+    select
+};
 
 pub async fn read_write<R, W>(mut reader: R, mut writer: W)
     where
@@ -32,31 +41,51 @@ pub async fn read_write_exec<R, W>(mut reader: R, mut writer: W, cmd: &str)
         .spawn()
         .unwrap();
 
-    let stdin = child.stdin.unwrap();
-    let stdout = child.stdout.unwrap();
-    let stderr = child.stderr.unwrap();
+    let mut stdin = child.stdin.unwrap();
+    let mut stdout = child.stdout.unwrap();
+    let mut stderr = child.stderr.unwrap();
 
-    let mut stdin_buffer = [0; 265];
-    let mut network_in_buffer = [0; 256];
+    let mut stdout_buffer = [0; 512];
+    let mut stderr_buffer = [0; 512];
+    let mut network_in_buffer = [0; 512];
 
-    let mut stdin = stdin();
+    let mut active = true;
 
-    loop {
+    while active {
         select! {
-            res = stdin.read(&mut stdin_buffer) => {
+            res = stdout.read(&mut stdout_buffer) => {
                 if let Ok(amount) = res {
-                    socket
-                        .send(&stdin_buffer[0..amount])
-                        .await
-                        .expect("failed to send data");
+                    if amount != 0 {
+                        writer
+                            .write(&stdout_buffer[0..amount])
+                            .await
+                            .expect("failed to write data");
+                    } else {
+                        active = false;
+                    }
                 } else {
                     res.unwrap();
                 }
             }
 
-            res = socket.recv(&mut network_in_buffer) => {
+            res = stderr.read(&mut stderr_buffer) => {
                 if let Ok(amount) = res {
-                    stdout()
+                    if amount != 0 {
+                        writer
+                            .write(&stderr_buffer[0..amount])
+                            .await
+                            .expect("failed to write data");
+                    } else {
+                        active = false;
+                    }
+                } else {
+                    res.unwrap();
+                }
+            }
+
+            res = reader.read(&mut network_in_buffer) => {
+                if let Ok(amount) = res {
+                    stdin
                         .write(&network_in_buffer[0..amount])
                         .await
                         .expect("failed to write to stdout");

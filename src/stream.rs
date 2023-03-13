@@ -1,3 +1,5 @@
+use crate::common::read_write_exec;
+
 /*
 async fn run() -> Result<(), String> {
     let mut stdin = tokio::io::stdin();
@@ -11,10 +13,10 @@ async fn run() -> Result<(), String> {
 }
 */
 
-pub async fn client() -> Result<(), String> {
-    let client = tokio::net::TcpStream::connect(
-        "127.0.0.1:3000"
-    )
+pub async fn client(host: &str, port: u16) -> Result<(), String> {
+    let addr = format!("{}:{}", host, port);
+
+    let client = tokio::net::TcpStream::connect(&addr)
         .await
         .expect("connection failed");
 
@@ -36,10 +38,10 @@ pub async fn client() -> Result<(), String> {
     Ok(())
 }
 
-pub async fn server() -> Result<(), String> {
-    let listener = tokio::net::TcpListener::bind(
-        "127.0.0.1:3000"
-    )
+pub async fn server(host: &str, port: u16) -> Result<(), String> {
+    let addr = format!("{}:{}", host, port);
+
+    let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .expect("failed to bind address");
 
@@ -62,6 +64,25 @@ pub async fn server() -> Result<(), String> {
         _ = client_read => {}
         _ = client_write => {}
     };
+
+    Ok(())
+}
+
+pub async fn server_exec(host: &str, port: u16, cmd: &str) -> Result<(), String> {
+    let addr = format!("{}:{}", host, port);
+
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .expect("failed to bind address");
+
+    let (handel, _) = listener
+        .accept()
+        .await
+        .expect("failed to accept incoming message");
+
+    let (reader, writer) = handel.into_split();
+
+    read_write_exec(reader, writer, cmd).await;
 
     Ok(())
 }

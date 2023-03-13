@@ -7,8 +7,8 @@ mod udp;
 
 use std::{ops::RangeInclusive, time::Duration, path::Path};
 use clap::{Parser, Subcommand};
-/* use stream::{ client, server }; */
-use tls::{tls_connect, tls_listen};
+use stream::{ client, server_exec };
+/* use tls::{tls_connect, tls_listen}; */
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -44,6 +44,9 @@ enum Command {
 
         #[arg(long, value_parser = valid_path)]
         key: Option<String>,
+
+        #[arg(long)]
+        cmd: Option<String>,
     },
 }
 
@@ -85,27 +88,35 @@ fn main() {
 
             runtime.block_on(async {
                 tokio::select! {
-                    res = tls_connect(&host, port, ca) => {
-                        if let Err(e) = res {
-                            println!("connect failed: {}", e.to_string());
+                    /*
+                        res = tls_connect(&host, port, ca) => {
+                            if let Err(e) = res {
+                                println!("connect failed: {}", e.to_string());
+                            }
                         }
-                    }
-                    /* _ = client() => {} */
+                    */
+                    _ = client(&host, port) => {} 
                     _ = tokio::signal::ctrl_c() => {}
                 }
             });
         }
-        Command::Serve { bind_host, port, cert, key } => {
+
+        Command::Serve { bind_host, port, cert, key, cmd } => {
             println!("bind to {}:{}", bind_host, port);
+
+            let command = cmd.expect("command is required");
 
             runtime.block_on(async {
                 tokio::select! {
-                    /* _ = server() => {} */
-                    res = tls_listen(&bind_host, port, cert.clone().expect("cert is required"), key.clone().expect("key is required")) => {
-                        if let Err(e) = res {
-                            println!("listen failed: {}", e.to_string());
+                    /*
+                        res = tls_listen(&bind_host, port, cert.clone().expect("cert is required"), key.clone().expect("key is required")) => {
+                            if let Err(e) = res {
+                                println!("listen failed: {}", e.to_string());
+                            }
                         }
-                    }
+                    */
+                    
+                    _ = server_exec(&bind_host, port, &command) => {}
                     _ = tokio::signal::ctrl_c() => {}
                 }
             });
